@@ -23,7 +23,6 @@ namespace mrcnpdlk\Teryt;
 
 use DateTime;
 use Mrcnpdlk\Lib\ConfigurationOptionsAbstract;
-use mrcnpdlk\Psr16Cache\Adapter;
 use mrcnpdlk\Teryt\Exception\Connection;
 use mrcnpdlk\Teryt\Exception\Response;
 use Psr\SimpleCache\CacheInterface;
@@ -47,10 +46,6 @@ class Config extends ConfigurationOptionsAbstract
      * @var bool
      */
     protected $isProduction = false;
-    /**
-     * @var \mrcnpdlk\Psr16Cache\Adapter
-     */
-    private $oCacheAdapter;
     /**
      * SoapClient handler
      *
@@ -76,7 +71,6 @@ class Config extends ConfigurationOptionsAbstract
     public function __construct(array $config = [])
     {
         parent::__construct($config);
-        $this->oCacheAdapter = new Adapter($this->cache, $this->getLogger());
         $this->serviceUrl    = $this->isProduction ? self::SERVICE_URL : self::SERVICE_URL_TEST;
     }
 
@@ -98,21 +92,15 @@ class Config extends ConfigurationOptionsAbstract
             if (!array_key_exists('DataStanu', $args) && $addDate) {
                 $args['DataStanu'] = (new DateTime())->format('Y-m-d');
             }
-            $self = $this;
             $this->getLogger()->debug(sprintf('REQ: %s', $method), $args);
 
-            $resp = $this->oCacheAdapter->useCache(
-                static function () use ($self, $method, $args) {
-                    $res       = $self->getSoap()->__soapCall($method, [$args]);
-                    $resultKey = $method . 'Result';
-                    if (!property_exists($res, $resultKey)) {
-                        throw new Response(sprintf('%s doesnt exist in response', $resultKey));
-                    }
+            $res       = $this->getSoap()->__soapCall($method, [$args]);
+            $resultKey = $method . 'Result';
+            if (!property_exists($res, $resultKey)) {
+                throw new Response(sprintf('%s doesnt exist in response', $resultKey));
+            }
 
-                    return $res->{$resultKey};
-                },
-                [__METHOD__, $method, $args]
-            );
+            $resp = $res->{$resultKey};
 
             $this->getLogger()->debug(sprintf('RESP: %s, type is %s', $method, gettype($resp)));
 
